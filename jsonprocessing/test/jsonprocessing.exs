@@ -105,6 +105,12 @@ defmodule Jsonprocessing do
     |> Enum.sort_by(&(&1["ts"]))
   end
 
+  def find_matching_file_in_zip(zip_file, file_to_match) do
+    {:ok, zipfile} = :zip.zip_open(String.to_charlist("intel_b85947ac31e74a3db6d7de48fa9a8254_20210925145142.zip"), [:memory])
+    {:ok, result} = :zip.zip_list_dir(zipfile)
+    result |> Enum.drop(1) |> Enum.map(fn {_zip_file, filename, {_file_info, _, _regular, _read_write, {{_, _, _}, {_, _, _}}, {{_, _, _}, {_, _, _}}, {{_, _, _}, {_, _, _}}, _, _, _, _, _, _,_}, [], _, _} -> filename end)
+  end
+  
   def prepare_chart_data() do
 
     ## setup input data
@@ -116,8 +122,9 @@ defmodule Jsonprocessing do
 
     # Open file to write output data
     {:ok, file} = File.open("output.txt", [:write, :utf8])
-    File.write("output.txt", "analyze_events_data = [\n")
 
+    ### Reading & redirecting Event Metrics Json file func_call enter/leave data to text file
+    File.write("output.txt", "analyze_events_data = [\n")
     first_zip_file
     |> Jsonprocessing.get_atl_execution_data(events_json_file)
     |> Stream.map(&(inspect(&1) <> ",\n"))
@@ -125,6 +132,7 @@ defmodule Jsonprocessing do
     |> Stream.run
     File.write("output.txt", "]\n", [:append])
 
+    ### Reading & redirecting Event Metrics Json file cpu usage data collected by C# to text file
     File.write("output.txt", "\ncpu_usage_data_csharp = [\n", [:append])
     first_zip_file
     |> Jsonprocessing.get_cpuusage_data(events_json_file)
@@ -133,6 +141,7 @@ defmodule Jsonprocessing do
     |> Stream.run
     File.write("output.txt", "]\n", [:append])
 
+    ### Reading & redirecting Event Metrics Json file cpu usage data collected by C# to text file
     File.write("output.txt", "\ncpu_usage_data_csharp_next = [\n", [:append])
     first_zip_file
     |> Jsonprocessing.get_cpuusagenext_data(events_json_file)
@@ -141,6 +150,7 @@ defmodule Jsonprocessing do
     |> Stream.run
     File.write("output.txt", "]\n", [:append])
 
+    ### Reading & redirecting observability trace file cpu usage data collected by ESRV process IL to text file
     File.write("output.txt", "\ncpu_usage_data = [\n", [:append])
     second_zip_file
     |> Jsonprocessing.get_esrv_cpuusage_pwrconsumption_data(observability_trace_file)
@@ -149,6 +159,7 @@ defmodule Jsonprocessing do
     |> Stream.run
     File.write("output.txt", "]\n", [:append])
 
+    ### Reading & redirecting observability cpu core file cpu cores data collected by ESRV HW IL to text file
     File.write("output.txt", "\ncpu_cores_data = [\n", [:append])
     second_zip_file
     |> Jsonprocessing.get_esrv_cpucore_data(observability_cpucore_file)
@@ -157,6 +168,7 @@ defmodule Jsonprocessing do
     |> Stream.run
     File.write("output.txt", "]\n", [:append])
 
+    ### Writing elixir statement necessary to generate vega lite charts
     File.write("output.txt", '\ndmin =
   analyze_events_data
   |> Enum.reduce(
