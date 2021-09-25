@@ -8,11 +8,10 @@ defmodule Jsonprocessing do
     file_content
   end
 
-  def get_atl_execution_data() do
+  def get_atl_execution_data(input_zip_file) do
     Mix.install([ {:poison, "~> 5.0"} ])
 
-    read_file_content("intel_b85947ac31e74a3db6d7de48fa9a8254_20210925145142.zip", 'V8_1_EventMetrics20210925145142.json')
-    #read_file_content("intel_b85947ac31e74a3db6d7de48fa9a8254_20210923133205.zip", "V8_1_EventMetrics*.json")
+    read_file_content(input_zip_file, 'V8_1_EventMetrics20210925145142.json')
     |> Poison.decode!
     |> Map.get("Events")
     # use pattern matching to pull out relevant data from the parsed JSON
@@ -35,12 +34,11 @@ defmodule Jsonprocessing do
       end
     )
     |> Map.values
-    #|> inspect |> IO.puts
   end
 
-  def get_cpuusage_data() do
+  def get_cpuusage_data(input_zip_file) do
     Mix.install([ {:poison, "~> 5.0"} ])
-    read_file_content("intel_b85947ac31e74a3db6d7de48fa9a8254_20210925145142.zip", 'V8_1_EventMetrics20210925145142.json')
+    read_file_content(input_zip_file, 'V8_1_EventMetrics20210925145142.json')
     |> Poison.decode!
     |> Map.get("Events")
     |> Enum.filter(fn %{"kind" => "measurement", "meta" => %{"name" => "cpu"}} -> true
@@ -51,12 +49,11 @@ defmodule Jsonprocessing do
       end
     )
     |> Map.values
-    #|> inspect |> IO.puts
   end
 
-  def get_cpuusagenext_data() do
+  def get_cpuusagenext_data(input_zip_file) do
     Mix.install([ {:poison, "~> 5.0"} ])
-    read_file_content("intel_b85947ac31e74a3db6d7de48fa9a8254_20210925145142.zip", 'V8_1_EventMetrics20210925145142.json')
+    read_file_content(input_zip_file, 'V8_1_EventMetrics20210925145142.json')
     |> Poison.decode!
     |> Map.get("Events")
     |> Enum.filter(fn %{"kind" => "measurement", "meta" => %{"name" => "cpunext"}} -> true
@@ -67,18 +64,16 @@ defmodule Jsonprocessing do
       end
     )
     |> Map.values
-    #|> inspect |> IO.puts
   end
 
-  def get_esrv_cpuusage_pwrconsumption_data() do
-    read_file_content("intel_b85947ac31e74a3db6d7de48fa9a8254_20210925145338.zip", 'V8_1_OBSERVABILITY_TRACE_20210925145332.V8')
+  def get_esrv_cpuusage_pwrconsumption_data(input_zip_file) do
+    read_file_content(input_zip_file, 'V8_1_OBSERVABILITY_TRACE_20210925145332.V8')
     |> String.split("\r\n")
     |> Enum.map(fn x -> String.split(x, "\x01") end)
     |> Enum.filter(fn [""] -> false
     _ -> true end)
     |> Enum.reduce(%{}, fn [_, _, _, _, _,ts, _, cpu, pwr], events ->  Map.put(events, String.to_integer(ts), %{"ts" => String.to_integer(ts), "cpu" => String.to_float(cpu), "pwr" => String.to_float(pwr)}) end)
     |> Map.values
-    # |> inspect |> IO.puts
   end
 
   def run_cpu_core_statement(input_list) do
@@ -95,51 +90,56 @@ defmodule Jsonprocessing do
     end
   end
 
-  def get_esrv_cpucore_data() do
-    read_file_content("intel_b85947ac31e74a3db6d7de48fa9a8254_20210925145338.zip", 'V8_1_OBSERVABILITY_CPU_CORE_20210925145332.V8')
+  def get_esrv_cpucore_data(input_zip_file) do
+    read_file_content(input_zip_file, 'V8_1_OBSERVABILITY_CPU_CORE_20210925145332.V8')
     |> String.split("\r\n")
     |> Enum.map(fn x -> String.split(x, "\x01") end)
     |> Enum.filter(fn [""] -> false
     _ -> true end)
     |> run_cpu_core_statement
     |> Map.values
-    #|> inspect |> IO.puts
   end
 
   def prepare_chart_data() do
 
+    [first_zip_file, second_zip_file] = System.argv
     {:ok, file} = File.open("output.txt", [:write, :utf8])
     File.write("output.txt", "analyze_events_data = [\n")
 
-    Jsonprocessing.get_atl_execution_data()
+    first_zip_file
+    |> Jsonprocessing.get_atl_execution_data
     |> Stream.map(&(inspect(&1) <> ",\n"))
     |> Stream.into(File.stream!("output.txt", [:write, :utf8, :append]))
     |> Stream.run
     File.write("output.txt", "]\n", [:append])
 
     File.write("output.txt", "\ncpu_usage_data_csharp = [\n", [:append])
-    Jsonprocessing.get_cpuusage_data()
+    first_zip_file
+    |> Jsonprocessing.get_cpuusage_data
     |> Stream.map(&(inspect(&1) <> ",\n"))
     |> Stream.into(File.stream!("output.txt", [:write, :utf8, :append]))
     |> Stream.run
     File.write("output.txt", "]\n", [:append])
 
     File.write("output.txt", "\ncpu_usage_data_csharp_next = [\n", [:append])
-    Jsonprocessing.get_cpuusagenext_data()
+    first_zip_file
+    |> Jsonprocessing.get_cpuusagenext_data
     |> Stream.map(&(inspect(&1) <> ",\n"))
     |> Stream.into(File.stream!("output.txt", [:write, :utf8, :append]))
     |> Stream.run
     File.write("output.txt", "]\n", [:append])
 
     File.write("output.txt", "\ncpu_usage_data = [\n", [:append])
-    Jsonprocessing.get_esrv_cpuusage_pwrconsumption_data()
+    second_zip_file
+    |> Jsonprocessing.get_esrv_cpuusage_pwrconsumption_data
     |> Stream.map(&(inspect(&1) <> ",\n"))
     |> Stream.into(File.stream!("output.txt", [:write, :utf8, :append]))
     |> Stream.run
     File.write("output.txt", "]\n", [:append])
 
     File.write("output.txt", "\ncpu_cores_data = [\n", [:append])
-    Jsonprocessing.get_esrv_cpucore_data()
+    second_zip_file
+    |> Jsonprocessing.get_esrv_cpucore_data
     |> Stream.map(&(inspect(&1) <> ",\n"))
     |> Stream.into(File.stream!("output.txt", [:write, :utf8, :append]))
     |> Stream.run
