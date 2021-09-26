@@ -106,19 +106,20 @@ defmodule Jsonprocessing do
   end
 
   def find_matching_file_in_zip(zip_file, file_to_match) do
-    {:ok, zipfile} = :zip.zip_open(String.to_charlist("intel_b85947ac31e74a3db6d7de48fa9a8254_20210925145142.zip"), [:memory])
+    {:ok, zipfile} = :zip.zip_open(String.to_charlist(zip_file), [:memory])
     {:ok, result} = :zip.zip_list_dir(zipfile)
-    result |> Enum.drop(1) |> Enum.map(fn {_zip_file, filename, {_file_info, _, _regular, _read_write, {{_, _, _}, {_, _, _}}, {{_, _, _}, {_, _, _}}, {{_, _, _}, {_, _, _}}, _, _, _, _, _, _,_}, [], _, _} -> filename end)
+    [filename|_rest] = result |> Enum.drop(1) |> Enum.map(fn {_zip_file, filename, {_file_info, _, _regular, _read_write, {{_, _, _}, {_, _, _}}, {{_, _, _}, {_, _, _}}, {{_, _, _}, {_, _, _}}, _, _, _, _, _, _,_}, [], _, _} -> filename end) |> Enum.filter(fn x -> String.starts_with?(Kernel.inspect(x), file_to_match) == true end)
+	filename
   end
-  
+
   def prepare_chart_data() do
 
     ## setup input data
     [first_zip_file, second_zip_file] = System.argv
 
-    events_json_file = 'V8_1_EventMetrics20210925145142.json'
-    observability_trace_file  = 'V8_1_OBSERVABILITY_TRACE_20210925145332.V8'
-    observability_cpucore_file = 'V8_1_OBSERVABILITY_CPU_CORE_20210925145332.V8'
+    events_json_file = first_zip_file |> find_matching_file_in_zip("'V8_1_EventMetrics")
+    observability_trace_file  = second_zip_file |> find_matching_file_in_zip("'V8_1_OBSERVABILITY_TRACE")
+    observability_cpucore_file = second_zip_file |> find_matching_file_in_zip("'V8_1_OBSERVABILITY_CPU_CORE")
 
     # Open file to write output data
     {:ok, file} = File.open("output.txt", [:write, :utf8])
