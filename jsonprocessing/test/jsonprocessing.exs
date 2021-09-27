@@ -112,6 +112,111 @@ defmodule Jsonprocessing do
 	filename
   end
 
+  def generate_elixir_statements() do
+    ### Writing elixir statement necessary to generate vega lite charts
+    File.write("output.txt", '\ndmin =
+  analyze_events_data
+  |> Enum.reduce(
+    0,
+    fn %{"start" => start}, min ->
+      cond do
+        min == 0 -> start
+        start < min -> start
+        true -> min
+      end
+    end
+  )\n
+dmax =
+  analyze_events_data
+  |> Enum.reduce(
+    0,
+    fn %{"end" => end_}, min ->
+      cond do
+        min == 0 -> end_
+        end_ > min -> end_
+        true -> min
+      end
+    end
+  )\n
+dmin |> inspect |> IO.puts()
+dmax |> inspect |> IO.puts()
+domain = [-1000, dmax - dmin + 1000]
+domain |> inspect |> IO.puts()\n
+
+analyze_events_data = analyze_events_data
+|> Enum.map(fn %{"event" => event, "start" => start, "end" => end_} ->
+  %{"event" => event |> String.replace("Task", "") |> String.replace("Analyzer", ""), "start" => start - dmin, "end" => end_ - dmin} end)
+
+cpu_usage_data_csharp = cpu_usage_data_csharp
+|> Enum.filter(fn %{"ts" => ts, "cpu" => _cpu} -> dmin <= ts and ts <= dmax end)
+|> Enum.map(fn %{"ts" => ts, "cpu" => cpu} -> %{"ts" => ts - dmin, "cpu" => cpu} end)
+
+cpu_usage_data_csharp_next = cpu_usage_data_csharp_next
+|> Enum.filter(fn %{"ts" => ts, "cpu" => _cpu} -> dmin <= ts and ts <= dmax end)
+|> Enum.map(fn %{"ts" => ts, "cpu" => cpu} -> %{"ts" => ts - dmin, "cpu" => cpu} end)
+
+cpu_usage_data = cpu_usage_data
+|> Enum.filter(fn %{"ts" => ts, "cpu" => _cpu, "pwr" => _pwr} -> dmin <= ts and ts <= dmax end)
+|> Enum.map(fn %{"ts" => ts, "cpu" => cpu, "pwr" => pwr} -> %{"ts" => ts - dmin, "cpu" => cpu, "pwr" => pwr} end)
+
+cpu_cores_data = cpu_cores_data
+|> Enum.filter(fn %{ "ts" => ts, "core1" => _core1, "core2" => _core2, "core3" => _core3, "core4" => _core4} -> dmin <= ts and ts <= dmax end)
+|> Enum.map(fn %{ "ts" => ts, "core1" => core1, "core2" => core2, "core3" => core3, "core4" => core4} ->
+  %{"ts" => ts - dmin, "core1" => core1, "core2" => core2, "core3" => core3, "core4" => core4} end)\n
+
+Vl.new()
+|> Vl.concat(
+  [
+    Vl.new(width: 500, height: 350, title: "Analyze Data Visualization")
+    |> Vl.data_from_values(cpu_usage_data)
+    |> Vl.encode_field(:x, "ts",
+      type: :quantitative,
+      axis: [orient: :bottom],
+      scale: %{"domain" => domain}
+    )
+    |> Vl.layers([
+      Vl.new()
+      |> Vl.mark(:rule, color: :firebrick, size: 3, strokeDash: [4, 4])
+      |> Vl.encode(:y, value: 315),
+      Vl.new()
+      |> Vl.mark(:rule, color: :green, size: 5)
+      |> Vl.encode(:y, value: 281),
+      Vl.new()
+      |> Vl.data_from_values(analyze_events_data)
+      |> Vl.mark(:bar, tooltip: true)
+      |> Vl.encode_field(:x, "start", type: :quantitative, scale: %{"domain" => domain})
+      |> Vl.encode_field(:x2, "end")
+      |> Vl.encode_field(:y, "event", sort: nil)
+      |> Vl.encode_field(:color, "event", type: :nominal, legend: nil),
+      Vl.new()
+      |> Vl.mark(:point, color: :red, tooltip: true)
+      |> Vl.encode_field(:y, "cpu", type: :quantitative, scale: %{"domain" => [0, 100]}, axis: %{"titleColor" => :firebrick}),
+      Vl.new()
+      |> Vl.mark(:point, color: :lightseagreen, shape: :triangle)
+      |> Vl.encode_field(:y, "pwr", type: :quantitative, scale: %{"domain" => [0, 50]}, axis: %{"offset" => 45, "titleColor" => :green}),
+      Vl.new()
+      |> Vl.data_from_values(cpu_cores_data)
+      |> Vl.mark(:point, color: :red, point: true, shape: "M0,0L0,2L-.8L.8M0,0L-.8,.8", tooltip: true)
+      |> Vl.encode_field(:y, "core1", type: :quantitative, scale: %{"domain" => [0, 100]}, axis: %{"offset" => 80, "titleColor" => :red}),
+      Vl.new()
+      |> Vl.data_from_values(cpu_cores_data)
+      |> Vl.mark(:point, color: :green, point: true, shape: "M-1,-1C-1,-1,0,-2,.8,-1L-.2,.5L1.2,.5", tooltip: true)
+      |> Vl.encode_field(:y, "core2", type: :quantitative, scale: %{"domain" => [0, 100]}, axis: %{"offset" => 120, "titleColor" => :green}),
+      Vl.new()
+      |> Vl.data_from_values(cpu_cores_data)
+      |> Vl.mark(:point, color: :orange, point: true, shape: "M0,0L.5,-.5L1,-.5L1.5,0L1,.5L1.5,1L1,1.5L.5,1.5L0,1", tooltip: true)
+      |> Vl.encode_field(:y, "core3", type: :quantitative, scale: %{"domain" => [0, 100]}, axis: %{"offset" => 160, "titleColor" => :orange}),
+      Vl.new()
+      |> Vl.data_from_values(cpu_cores_data)
+      |> Vl.mark(:point, color: :cadetblue, point: true, shape: "M.3,1.2L.3,-1.2L-.9,.3L.9,.3", tooltip: true)
+      |> Vl.encode_field(:y, "core4", type: :quantitative, scale: %{"domain" => [0, 100]}, axis: %{"offset" => 200, "titleColor" => :cadetblue})
+    ])
+    |> Vl.resolve(:scale, y: :independent)
+  ],
+  :horizontal
+)', [:append])
+  end
+
   def prepare_chart_data() do
 
     ## setup input data
@@ -169,137 +274,10 @@ defmodule Jsonprocessing do
     |> Stream.run
     File.write("output.txt", "]\n", [:append])
 
-    ### Writing elixir statement necessary to generate vega lite charts
-    File.write("output.txt", '\ndmin =
-  analyze_events_data
-  |> Enum.reduce(
-    0,
-    fn %{"start" => start}, min ->
-      cond do
-        min == 0 -> start
-        start < min -> start
-        true -> min
-      end
-    end
-  )\n
-dmax =
-  analyze_events_data
-  |> Enum.reduce(
-    0,
-    fn %{"end" => end_}, min ->
-      cond do
-        min == 0 -> end_
-        end_ > min -> end_
-        true -> min
-      end
-    end
-  )\n
-dmax |> inspect |> IO.puts()
-dmin |> inspect |> IO.puts()
-domain = [-1000, dmax - dmin + 1000]
-domain |> inspect |> IO.puts()\n
-analyze_events_data =
-  analyze_events_data
-  |> Enum.map(fn %{"event" => event, "start" => start, "end" => end_} ->
-    %{
-      "event" => event |> String.replace("Task", "") |> String.replace("Analyzer", ""),
-      "start" => start - dmin,
-      "end" => end_ - dmin
-    }
-  end)\n
+    ### Write elixir code to prepare data filtering and generate chart
+    generate_elixir_statements()
 
-cpu_usage_data =
-  cpu_usage_data
-  |> Enum.map(fn %{"ts" => ts, "cpu" => cpu, "pwr" => pwr} ->
-    %{"ts" => ts - dmin, "cpu" => cpu, "pwr" => pwr}
-  end)\n
-
-cpu_cores_data =
-  cpu_cores_data
-  |> Enum.map(fn %{
-                   "ts" => ts,
-                   "core1" => core1,
-                   "core2" => core2,
-                   "core3" => core3,
-                   "core4" => core4
-                 } ->
-    %{"ts" => ts - dmin, "core1" => core1, "core2" => core2, "core3" => core3, "core4" => core4}
-  end)\n
-  Vl.new()
-  |> Vl.concat(
-    [
-      Vl.new(width: 350, height: 350, title: "Parallel ATL Execution Run1")
-      |> Vl.data_from_values(cpu_usage_data)
-      |> Vl.encode_field(:x, "ts",
-        type: :quantitative,
-        axis: [orient: :bottom],
-        scale: %{"domain" => domain}
-      )
-      |> Vl.layers([
-        Vl.new()
-        |> Vl.mark(:rule, color: :firebrick, size: 3, strokeDash: [4, 4])
-        |> Vl.encode(:y, value: 315),
-        Vl.new()
-        |> Vl.mark(:rule, color: :green, size: 5)
-        |> Vl.encode(:y, value: 281),
-        Vl.new()
-        |> Vl.data_from_values(analyze_events_data)
-        |> Vl.mark(:bar)
-        |> Vl.encode_field(:x, "start", type: :quantitative, scale: %{"domain" => domain})
-        |> Vl.encode_field(:x2, "end")
-        |> Vl.encode_field(:y, "event", sort: nil)
-        |> Vl.encode_field(:color, "event", type: :nominal, legend: nil),
-        Vl.new()
-        |> Vl.mark(:point, color: :red)
-        |> Vl.encode_field(:y, "cpu",
-          type: :quantitative,
-          scale: %{"domain" => [0, 100]},
-          axis: %{"titleColor" => :firebrick}
-        ),
-        Vl.new()
-        |> Vl.mark(:point, color: :lightseagreen, shape: :triangle)
-        |> Vl.encode_field(:y, "pwr",
-          type: :quantitative,
-          scale: %{"domain" => [0, 50]},
-          axis: %{"offset" => 45, "titleColor" => :green}
-        ),
-        Vl.new()
-        |> Vl.data_from_values(cpu_cores_data)
-        |> Vl.mark(:line, color: :red, point: true)
-        |> Vl.encode_field(:y, "core1",
-          type: :quantitative,
-          scale: %{"domain" => [0, 100]},
-          axis: %{"offset" => 80, "titleColor" => :red}
-        ),
-        Vl.new()
-        |> Vl.data_from_values(cpu_cores_data)
-        |> Vl.mark(:line, color: :green, point: true)
-        |> Vl.encode_field(:y, "core2",
-          type: :quantitative,
-          scale: %{"domain" => [0, 100]},
-          axis: %{"offset" => 120, "titleColor" => :green}
-        ),
-        Vl.new()
-        |> Vl.data_from_values(cpu_cores_data)
-        |> Vl.mark(:line, color: :orange, point: true)
-        |> Vl.encode_field(:y, "core3",
-          type: :quantitative,
-          scale: %{"domain" => [0, 100]},
-          axis: %{"offset" => 160, "titleColor" => :orange}
-        ),
-        Vl.new()
-        |> Vl.data_from_values(cpu_cores_data)
-        |> Vl.mark(:line, color: :cadetblue, point: true)
-        |> Vl.encode_field(:y, "core4",
-          type: :quantitative,
-          scale: %{"domain" => [0, 100]},
-          axis: %{"offset" => 200, "titleColor" => :cadetblue}
-        )
-      ])
-      |> Vl.resolve(:scale, y: :independent)
-    ],
-    :horizontal
-    )', [:append])
+    ### Close file after writing all data
     File.close(file)
   end
 end
